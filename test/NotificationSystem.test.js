@@ -57,10 +57,8 @@ describe("NotificationSystem", function () {
       console.log("Testing cooldown enforcement...");
       const deposit = await notif.getCurrentDepositRequirement();
       
-      // First notification should succeed
       await notif.connect(addr1).sendNotification("First", 0, { value: deposit });
       
-      // Immediate second notification should fail
       await expect(
         notif.connect(addr1).sendNotification("Second", 0, { value: deposit })
       ).to.be.revertedWith("Cooldown period not passed");
@@ -71,7 +69,6 @@ describe("NotificationSystem", function () {
 
   describe("Validation System", function () {
     beforeEach(async function () {
-      // Setup: addr1 sends a notification
       const deposit = await notif.getCurrentDepositRequirement();
       await notif.connect(addr1).sendNotification("Test validation", 0, { value: deposit });
     });
@@ -87,7 +84,6 @@ describe("NotificationSystem", function () {
       expect(details.validationCount).to.equal(1);
       console.log("✓ Validation recorded correctly");
       
-      // Check validator received points
       const [points] = await notif.getUserBasicStats(addr2.address);
       expect(points).to.equal(1);
       console.log("✓ Validator received points");
@@ -118,13 +114,11 @@ describe("NotificationSystem", function () {
     it("should process successful validation when threshold reached", async function () {
       console.log("Testing validation threshold...");
       
-      // Get 5 validations (REQUIRED_VALIDATIONS)
       await notif.connect(addr2).validateNotification(0);
       await notif.connect(addr3).validateNotification(0);
       await notif.connect(addr4).validateNotification(0);
       await notif.connect(addr5).validateNotification(0);
       
-      // Fifth validation should trigger processing
       await expect(notif.connect(owner).validateNotification(0))
         .to.emit(notif, "RewardSent");
       
@@ -132,7 +126,6 @@ describe("NotificationSystem", function () {
       expect(details.status).to.equal(1); // VALIDATED
       console.log("✓ Notification marked as validated");
       
-      // Check sender received reward
       const [points] = await notif.getUserBasicStats(addr1.address);
       expect(points).to.be.gt(0);
       console.log("✓ Sender received reward points");
@@ -141,7 +134,6 @@ describe("NotificationSystem", function () {
 
   describe("Rejection System", function () {
     beforeEach(async function () {
-      // Setup: addr1 sends a notification
       const deposit = await notif.getCurrentDepositRequirement();
       await notif.connect(addr1).sendNotification("Test rejection", 0, { value: deposit });
     });
@@ -161,11 +153,9 @@ describe("NotificationSystem", function () {
     it("should process failed notification when threshold reached", async function () {
       console.log("Testing rejection threshold...");
       
-      // Get 3 rejections (REQUIRED_REJECTIONS)
       await notif.connect(addr2).rejectNotification(0);
       await notif.connect(addr3).rejectNotification(0);
       
-      // Third rejection should trigger processing
       await expect(notif.connect(addr4).rejectNotification(0))
         .to.emit(notif, "DepositCollected");
       
@@ -173,7 +163,6 @@ describe("NotificationSystem", function () {
       expect(details.status).to.equal(2); // REJECTED
       console.log("✓ Notification marked as rejected");
       
-      // Check sender's rejection count
       const user = await notif.users(addr1.address);
       expect(user.rejectionCount).to.equal(1);
       console.log("✓ Sender rejection count incremented");
@@ -182,11 +171,9 @@ describe("NotificationSystem", function () {
     it("should ban user after 3 rejected notifications", async function () {
       console.log("Testing user banning...");
       
-      // Send and reject 3 notifications from addr1 with cooldown
       const deposit = await notif.getCurrentDepositRequirement();
       
       for (let i = 0; i < 3; i++) {
-        // Advance time to bypass cooldown
         await ethers.provider.send("evm_increaseTime", [3600]); // 1 hour
         await ethers.provider.send("evm_mine");
         
@@ -196,12 +183,10 @@ describe("NotificationSystem", function () {
         await notif.connect(addr4).rejectNotification(i);
       }
       
-      // Check ban status
       const [isBanned] = await notif.getUserBanStatus(addr1.address);
       expect(isBanned).to.be.true;
       console.log("✓ User correctly banned after 3 rejections");
       
-      // Try to send another notification (should fail)
       await expect(
         notif.connect(addr1).sendNotification("Banned attempt", 0, { value: deposit })
       ).to.be.revertedWith("You are currently banned");
@@ -213,23 +198,19 @@ describe("NotificationSystem", function () {
     it("should upgrade user level based on points", async function () {
       console.log("Testing user level upgrades...");
       
-      // Get current thresholds
       const silver = await notif.silverThreshold();
       const gold = await notif.goldThreshold();
       const platinum = await notif.platinumThreshold();
       
-      // Send and validate enough notifications to reach platinum
       const deposit = await notif.getCurrentDepositRequirement();
       const notificationsNeeded = Math.ceil(Number(platinum) / 10); // Approximate
       
       for (let i = 0; i < notificationsNeeded; i++) {
-        // Advance time to bypass cooldown
         await ethers.provider.send("evm_increaseTime", [3600]);
         await ethers.provider.send("evm_mine");
         
         await notif.connect(addr1).sendNotification(`Level up ${i}`, 0, { value: deposit });
         
-        // Get 5 validations each time
         await notif.connect(addr2).validateNotification(i);
         await notif.connect(addr3).validateNotification(i);
         await notif.connect(addr4).validateNotification(i);
@@ -237,7 +218,6 @@ describe("NotificationSystem", function () {
         await notif.connect(owner).validateNotification(i);
       }
       
-      // Check final level
       const [, level] = await notif.getUserBasicStats(addr1.address);
       expect(level).to.equal(3); // PLATINUM
       console.log("✓ User reached PLATINUM level");
